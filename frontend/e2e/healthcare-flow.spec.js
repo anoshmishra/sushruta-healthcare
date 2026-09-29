@@ -1,0 +1,107 @@
+import { expect, test } from '@playwright/test'
+
+const email = `phase4-${Date.now()}@example.test`
+const password = 'SaferTestPass-2026!'
+
+test('registration, patient/doctor/mapping workflows, logout and login', async ({ page }) => {
+  const apiUrl = process.env.E2E_API_URL || 'http://127.0.0.1:8000'
+
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Register' }).click()
+  await page.getByLabel('Full name').fill('Phase Four Test User')
+  await page.getByLabel('Work email').fill(email)
+  await page.getByLabel('Password').fill(password)
+  await page.getByRole('button', { name: 'Create account' }).click()
+
+  await expect(page.getByRole('heading', { name: 'Overview' })).toBeVisible()
+  await expect.poll(() => page.evaluate(() => Boolean(sessionStorage.getItem('whatbytes-healthcare-session')))).toBe(true)
+  const accessToken = await page.evaluate(() => JSON.parse(sessionStorage.getItem('whatbytes-healthcare-session')).access)
+  const refreshToken = await page.evaluate(() => JSON.parse(sessionStorage.getItem('whatbytes-healthcare-session')).refresh)
+  expect(accessToken.split('.')).toHaveLength(3)
+  expect(refreshToken.split('.')).toHaveLength(3)
+  await page.reload()
+  await expect(page.getByRole('heading', { name: 'Overview' })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Patients', exact: true }).click()
+  await page.getByRole('button', { name: 'Add patient' }).click()
+  const patientDialog = page.getByRole('dialog')
+  await patientDialog.getByLabel('Full name').fill('E2E Patient')
+  await patientDialog.getByLabel('Date of birth').fill('1990-03-12')
+  await patientDialog.getByLabel('Gender').selectOption('prefer_not_to_say')
+  await patientDialog.getByLabel('Phone').fill('+1 555 0100')
+  await patientDialog.getByLabel('Email Optional').fill(`${email.split('@')[0]}-patient@example.test`)
+  await patientDialog.getByLabel('Address Optional').fill('10 E2E Lane')
+  await patientDialog.getByRole('button', { name: 'Add record' }).click()
+  await expect(page.getByText('E2E Patient')).toBeVisible()
+
+  let patientRow = page.getByRole('row').filter({ hasText: 'E2E Patient' })
+  await patientRow.getByRole('button', { name: 'View' }).click()
+  await expect(page.getByRole('dialog').getByText('E2E Patient')).toBeVisible()
+  await page.getByRole('button', { name: 'Close dialog' }).click()
+  await patientRow.getByRole('button', { name: 'Edit' }).click()
+  await page.getByRole('dialog').getByLabel('Full name').fill('Updated E2E Patient')
+  await page.getByRole('dialog').getByRole('button', { name: 'Save changes' }).click()
+  await expect(page.getByText('Updated E2E Patient')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Doctors', exact: true }).click()
+  await page.getByRole('button', { name: 'Add doctor' }).click()
+  const doctorDialog = page.getByRole('dialog')
+  await doctorDialog.getByLabel('Full name').fill('E2E Clinician')
+  await doctorDialog.getByLabel('Specialization').fill('Family Medicine')
+  await doctorDialog.getByLabel('Email').fill(`${email.split('@')[0]}-doctor@example.test`)
+  await doctorDialog.getByLabel('Phone').fill('+1 555 0200')
+  await doctorDialog.getByLabel('Address Optional').fill('20 E2E Clinic Road')
+  await doctorDialog.getByRole('button', { name: 'Add record' }).click()
+  await expect(page.getByText('Dr. E2E Clinician')).toBeVisible()
+
+  let doctorRow = page.getByRole('row').filter({ hasText: 'Dr. E2E Clinician' })
+  await doctorRow.getByRole('button', { name: 'View' }).click()
+  await expect(page.getByRole('dialog').getByText('Family Medicine')).toBeVisible()
+  await page.getByRole('button', { name: 'Close dialog' }).click()
+  await doctorRow.getByRole('button', { name: 'Edit' }).click()
+  await page.getByRole('dialog').getByLabel('Full name').fill('Updated E2E Clinician')
+  await page.getByRole('dialog').getByRole('button', { name: 'Save changes' }).click()
+  await expect(page.getByText('Dr. Updated E2E Clinician')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Care assignments', exact: true }).click()
+  await page.getByLabel('Patient').first().selectOption({ label: 'Updated E2E Patient' })
+  await page.getByLabel('Doctor').selectOption({ label: 'Dr. Updated E2E Clinician · Family Medicine' })
+  await page.getByRole('button', { name: 'Assign doctor' }).click()
+  await expect(page.getByText('Care assignment created.')).toBeVisible()
+  await expect(page.getByRole('row').filter({ hasText: 'Updated E2E Patient' }).getByText('Dr. Updated E2E Clinician')).toBeVisible()
+
+  await page.getByLabel('Patient').last().selectOption({ label: 'Updated E2E Patient' })
+  await page.getByRole('button', { name: 'View doctors' }).click()
+  await expect(page.locator('.lookup-results').getByText('Dr. Updated E2E Clinician · Family Medicine')).toBeVisible()
+  page.once('dialog', (dialog) => dialog.accept())
+  await page.getByRole('row').filter({ hasText: 'Updated E2E Patient' }).getByRole('button', { name: 'Remove' }).click()
+  await expect(page.getByText('No care assignments yet')).toBeVisible()
+
+  page.once('dialog', (dialog) => dialog.accept())
+  await page.getByRole('button', { name: 'Doctors', exact: true }).click()
+  await page.getByRole('row').filter({ hasText: 'Dr. Updated E2E Clinician' }).getByRole('button', { name: 'Delete' }).click()
+  await expect(page.getByText('No doctors yet')).toBeVisible()
+  page.once('dialog', (dialog) => dialog.accept())
+  await page.getByRole('button', { name: 'Patients', exact: true }).click()
+  await page.getByRole('row').filter({ hasText: 'Updated E2E Patient' }).getByRole('button', { name: 'Delete' }).click()
+  await expect(page.getByText('No patients yet')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Log out' }).click()
+  await expect(page.getByRole('heading', { name: 'Sign in to your workspace' })).toBeVisible()
+  await expect.poll(() => page.evaluate(() => sessionStorage.getItem('whatbytes-healthcare-session'))).toBeNull()
+  const unauthenticatedStatus = await page.evaluate(async (url) => (await fetch(`${url}/api/patients/`)).status, apiUrl)
+  expect(unauthenticatedStatus).toBe(401)
+
+  await page.getByLabel('Work email').fill(email)
+  await page.getByLabel('Password').fill(password)
+  await page.getByRole('button', { name: 'Sign in' }).click()
+  await expect(page.getByRole('heading', { name: 'Overview' })).toBeVisible()
+  await page.evaluate(() => {
+    const stored = JSON.parse(sessionStorage.getItem('whatbytes-healthcare-session'))
+    stored.access = 'invalid.token.value'
+    sessionStorage.setItem('whatbytes-healthcare-session', JSON.stringify(stored))
+  })
+  await page.getByRole('button', { name: 'Patients', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Sign in to your workspace' })).toBeVisible()
+  await expect.poll(() => page.evaluate(() => sessionStorage.getItem('whatbytes-healthcare-session'))).toBeNull()
+})

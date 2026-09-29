@@ -1,0 +1,102 @@
+{
+  "info": {
+    "name": "WhatBytes Healthcare API",
+    "description": "End-to-end API requests for WhatBytes Healthcare. Set baseUrl, testEmail, and testPassword in a local Postman environment. Requests are ordered for a complete workflow. Registration and login are public; the collection applies the saved access token to protected requests.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }]
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8000" },
+    { "key": "testEmail", "value": "" },
+    { "key": "testPassword", "value": "" },
+    { "key": "accessToken", "value": "" },
+    { "key": "refreshToken", "value": "" },
+    { "key": "patientId", "value": "" },
+    { "key": "doctorId", "value": "" },
+    { "key": "mappingId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"API Test User\",\n  \"email\": \"{{testEmail}}\",\n  \"password\": \"{{testPassword}}\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/auth/register/"
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('Account registered', () => pm.response.to.have.status(201));"] } }]
+        },
+        {
+          "name": "Login (saves JWTs)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{testEmail}}\",\n  \"password\": \"{{testPassword}}\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/auth/login/"
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('Login returns both tokens', () => pm.response.to.have.status(200));", "const tokens = pm.response.json();", "pm.collectionVariables.set('accessToken', tokens.access);", "pm.collectionVariables.set('refreshToken', tokens.refresh);"] } }]
+        }
+      ]
+    },
+    {
+      "name": "Patients",
+      "item": [
+        { "name": "List my patients", "request": { "method": "GET", "url": "{{baseUrl}}/api/patients/" } },
+        {
+          "name": "Create patient (saves patientId)",
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"name\": \"API Test Patient\",\n  \"date_of_birth\": \"1990-03-12\",\n  \"gender\": \"prefer_not_to_say\",\n  \"phone\": \"+1 555 0100\",\n  \"email\": \"patient@example.com\",\n  \"address\": \"10 Care Lane\"\n}", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/api/patients/" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('Patient created', () => pm.response.to.have.status(201));", "pm.collectionVariables.set('patientId', pm.response.json().id);"] } }]
+        },
+        { "name": "Get patient", "request": { "method": "GET", "url": "{{baseUrl}}/api/patients/{{patientId}}/" } },
+        {
+          "name": "Replace patient",
+          "request": { "method": "PUT", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"name\": \"Updated API Test Patient\",\n  \"date_of_birth\": \"1990-03-12\",\n  \"gender\": \"prefer_not_to_say\",\n  \"phone\": \"+1 555 0101\",\n  \"email\": \"patient@example.com\",\n  \"address\": \"11 Care Lane\"\n}", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/api/patients/{{patientId}}/" }
+        }
+      ]
+    },
+    {
+      "name": "Doctors",
+      "item": [
+        { "name": "List doctors", "request": { "method": "GET", "url": "{{baseUrl}}/api/doctors/" } },
+        {
+          "name": "Create doctor (saves doctorId)",
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"name\": \"API Test Doctor\",\n  \"specialization\": \"Family Medicine\",\n  \"email\": \"doctor@example.com\",\n  \"phone\": \"+1 555 0200\",\n  \"address\": \"20 Clinic Road\"\n}", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/api/doctors/" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('Doctor created', () => pm.response.to.have.status(201));", "pm.collectionVariables.set('doctorId', pm.response.json().id);"] } }]
+        },
+        { "name": "Get doctor", "request": { "method": "GET", "url": "{{baseUrl}}/api/doctors/{{doctorId}}/" } },
+        {
+          "name": "Replace doctor",
+          "request": { "method": "PUT", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"name\": \"Updated API Test Doctor\",\n  \"specialization\": \"Family Medicine\",\n  \"email\": \"doctor@example.com\",\n  \"phone\": \"+1 555 0201\",\n  \"address\": \"21 Clinic Road\"\n}", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/api/doctors/{{doctorId}}/" }
+        }
+      ]
+    },
+    {
+      "name": "Patient-doctor mappings",
+      "item": [
+        {
+          "name": "Assign doctor (saves mappingId)",
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"patient\": {{patientId}},\n  \"doctor\": {{doctorId}}\n}", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/api/mappings/" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('Mapping created', () => pm.response.to.have.status(201));", "pm.collectionVariables.set('mappingId', pm.response.json().id);"] } }]
+        },
+        { "name": "List my mappings", "request": { "method": "GET", "url": "{{baseUrl}}/api/mappings/" } },
+        { "name": "List doctors assigned to patient", "request": { "method": "GET", "url": "{{baseUrl}}/api/mappings/{{patientId}}/" } },
+        { "name": "Remove mapping", "request": { "method": "DELETE", "url": "{{baseUrl}}/api/mappings/{{mappingId}}/" } }
+      ]
+    },
+    {
+      "name": "Cleanup (run last)",
+      "item": [
+        { "name": "Delete patient", "request": { "method": "DELETE", "url": "{{baseUrl}}/api/patients/{{patientId}}/" } },
+        { "name": "Delete doctor", "request": { "method": "DELETE", "url": "{{baseUrl}}/api/doctors/{{doctorId}}/" } }
+      ]
+    }
+  ]
+}
